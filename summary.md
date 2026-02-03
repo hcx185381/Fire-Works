@@ -446,8 +446,431 @@ python -m http.server 8888
 
 ---
 
+---
+
+## 补充记录 - 后续问题解决
+
+### 问题 1: 声音无法播放
+
+#### 问题描述
+用户报告无法听到烟花音效，控制台显示大量 CORS 错误：
+```
+Access to fetch at 'file:///E:/.../audio/lift1.mp3' from origin 'null' has been blocked by CORS policy
+```
+
+#### 问题原因
+用户**直接双击打开 HTML 文件**，浏览器使用 `file://` 协议访问。浏览器的安全策略（CORS）不允许通过 `file://` 协议加载本地音频文件。
+
+#### 解决方案
+1. **添加调试日志** (script.js):
+   - 音频上下文激活状态: `console.log("🔊 音频上下文已激活")`
+   - 声音被阻止原因: `console.log("🔇 声音被阻止: ...")`
+   - 音频文件未加载: `console.warn("⚠️ 音频文件尚未加载: ...")`
+   - 播放状态: `console.log("🔊 播放声音: ..., 音量: ...")`
+
+2. **创建启动脚本** (`启动服务器.bat`):
+   ```batch
+   @echo off
+   chcp 65001 >nul
+   echo 正在启动服务器...
+   echo 服务器地址: http://localhost:8888
+   cd /d "%~dp0"
+   python -m http.server 8888
+   ```
+
+3. **提供多种访问方式**:
+   - 本地服务器: `http://localhost:8888`
+   - GitHub Pages: `https://nianbroken.github.io/Firework_Simulator/`
+   - 局域网访问: `http://192.168.x.x:8888`
+
+#### 技术细节
+- **CORS 政策**: 只允许 `http:`, `https:`, `chrome-extension:`, `data:`, `edge:` 等协议
+- **AudioContext**: 需要用户交互（点击/触摸）后才能激活
+- **文件加载**: 使用 `fetch()` 异步加载音频文件
+
+---
+
+### 问题 2: 震动效果不适
+
+#### 问题描述
+用户反馈："把烟花爆炸时页面震动的那个效果去掉，晃的眼镜疼"
+
+#### 解决方案
+完全移除相机震动效果：
+1. 删除震动相关变量和函数
+2. 移除 updateGlobals 中的 updateShake() 调用
+3. 移除 render() 中的震动偏移应用
+4. 移除 Shell.burst() 中的震动触发
+
+#### 涉及文件
+- `js/script.js:1223-1242` - 删除震动变量和函数
+- `js/script.js:1272` - 删除更新调用
+- `js/script.js:1402` - 删除渲染偏移
+- `js/script.js:2109-2111` - 删除震动触发
+
+---
+
+### 问题 3: 手机访问本地服务器
+
+#### 用户需求
+在手机浏览器中访问电脑上运行的烟花模拟器
+
+#### 解决方案
+
+**步骤 1: 查找电脑 IP 地址**
+```bash
+# Windows
+ipconfig | findstr "IPv4"
+```
+
+输出示例：
+```
+IPv4 地址 . . . . . . . . . . . . : 192.168.1.103
+IPv4 地址 . . . . . . . . . . . . : 192.168.43.1
+```
+
+**步骤 2: 确认网络环境**
+- 确保手机和电脑在同一 Wi-Fi 下
+- 找到电脑正在使用的网络适配器对应的 IPv4 地址
+
+**步骤 3: 手机访问**
+在手机浏览器输入：
+```
+http://192.168.1.103:8888
+```
+
+**注意事项**:
+- `192.168.x.x` 是家用/办公室 Wi-Fi 地址段
+- `169.254.x.x` 是自动私有地址，不用于局域网通信（忽略）
+- 如果有多个 IP，依次尝试哪个能访问
+
+**常见 IP 类型**:
+- `192.168.1.x` - 家用路由器（最常见）
+- `192.168.0.x` - 家用路由器
+- `192.168.43.x` - 手机热点
+- `10.x.x.x` - 企业网络
+- `172.16.x.x ~ 172.31.x.x` - 企业网络
+
+---
+
+### 问题 4: 部署到 GitHub Pages
+
+#### 用户需求
+将项目部署到 GitHub，获得永久可访问的网址
+
+#### 实施步骤
+
+**1. 初始化 Git 仓库**
+```bash
+cd "E:\GitHub\烟花\Firework_Simulator-2.0"
+git init
+git add .
+git commit -m "feat: Firework Simulator v2.0"
+```
+
+**2. 连接远程仓库**
+```bash
+git remote add origin https://github.com/hcx185381/Fire-Works.git
+git branch -M main
+```
+
+**3. 推送到 GitHub**
+```bash
+# 首次推送遇到冲突，使用强制推送
+git push -u origin main --force
+```
+
+**4. 启用 GitHub Pages**
+- 打开仓库页面
+- Settings → Pages
+- Source 选择 `main` branch, `/ (root)` folder
+- 点击 Save
+- 等待 1-2 分钟
+
+**5. 访问网站**
+```
+https://hcx185381.github.io/Fire-Works/
+```
+
+#### 推送结果
+✅ 成功推送 26 个文件，4156 行代码
+✅ 创建了详细的 README.md
+✅ 创建了启动服务器脚本
+✅ 创建了本开发总结文档
+
+---
+
+## 音效系统详解
+
+### 音效文件列表
+```
+audio/
+├── lift1.mp3, lift2.mp3, lift3.mp3      # 发射声
+├── burst1.mp3, burst2.mp3                # 大爆炸
+├── burst-sm-1.mp3, burst-sm-2.mp3        # 小爆炸
+├── crackle1.mp3                           # 噼啪声
+└── crackle-sm-1.mp3                       # 小噼啪声
+```
+
+### 音效类型和用途
+| 类型 | 文件 | 触发时机 | 音量 |
+|------|------|---------|------|
+| **lift** | lift*.mp3 | 烟花发射 | 1.0 |
+| **burst** | burst*.mp3 | 大型爆炸 | 1.0 |
+| **burstSmall** | burst-sm-*.mp3 | 小型爆炸 | 0.25 |
+| **crackle** | crackle1.mp3 | 特殊烟花噼啪声 | 0.2 |
+| **crackleSmall** | crackle-sm-1.mp3 | 小型噼啪声 | 0.3 |
+
+### 音效配置
+```javascript
+const soundManager = {
+    baseURL: "./audio/",
+    ctx: new (window.AudioContext || window.webkitAudioContext)(),
+    sources: {
+        lift: {
+            volume: 1,
+            playbackRateMin: 0.85,
+            playbackRateMax: 0.95,
+            fileNames: ["lift1.mp3", "lift2.mp3", "lift3.mp3"]
+        },
+        // ... 其他配置
+    }
+};
+```
+
+### 音效动态调整
+- **音量**: 根据 scale 参数调整 (0-1)
+- **播放速度**: 根据 scale 调整 (scale 越小，速度越快)
+- **随机性**: 每次播放随机选择文件和播放速度
+
+---
+
+## 服务器启动方案对比
+
+### 方案 1: Python HTTP Server（推荐）
+```bash
+python -m http.server 8888
+```
+**优点**:
+- Python 通常已安装
+- 命令简单
+- 跨平台（Windows/Mac/Linux）
+
+**缺点**:
+- 只支持静态文件
+- 功能较基础
+
+### 方案 2: Node.js http-server
+```bash
+npx http-server -p 8888
+```
+**优点**:
+- 功能更丰富
+- 显示详细日志
+- 支持目录浏览
+
+**缺点**:
+- 需要安装 Node.js
+
+### 方案 3: PHP 内置服务器
+```bash
+php -S localhost:8888
+```
+**优点**:
+- PHP 开发者友好
+
+**缺点**:
+- 需要安装 PHP
+
+### 方案 4: 一键启动脚本
+**Windows**: `启动服务器.bat`
+```batch
+@echo off
+chcp 65001 >nul
+cd /d "%~dp0"
+python -m http.server 8888
+```
+
+**优点**:
+- 一键启动
+- 自动切换目录
+- 显示访问地址
+
+---
+
+## 浏览器兼容性说明
+
+### CORS 策略
+浏览器对 `file://` 协议的限制：
+
+| 浏览器 | file:// 支持 | CORS 限制 |
+|--------|-------------|-----------|
+| Chrome | ❌ | 严格 |
+| Firefox | ❌ | 严格 |
+| Edge | ❌ | 严格 |
+| Safari | ⚠️ | 部分支持 |
+
+### 解决方案总结
+✅ **必须使用 HTTP 服务器访问**
+❌ **不能直接双击 HTML 文件**
+
+### 音频上下文策略
+| 浏览器 | 激活方式 |
+|--------|---------|
+| Chrome | 需要用户交互（点击/触摸）|
+| Firefox | 需要用户交互 |
+| Safari | 需要用户交互，更严格 |
+| Edge | 同 Chrome |
+
+---
+
+## 性能优化建议
+
+### 画质设置
+- **低**: 适合低端设备，粒子数少
+- **正常**: 平衡性能和效果（推荐）
+- **高**: 高端设备，粒子数多
+
+### 烟花大小
+- **3" - 6"**: 适合移动设备
+- **8" - 12"**: 适合平板
+- **16"**: 适合桌面高端设备
+
+### 拖尾长度
+- **短** (0.3): 画面干净，性能好
+- **正常** (0.175): 平衡（推荐）
+- **长** (0.08): 视觉残留明显
+- **超长** (0.02): 艺术效果，性能消耗大
+
+### 其他设置
+- **关闭"同时放更多烟花"** - 提升性能
+- **降低"画质"** - 减少卡顿
+- **关闭"照亮天空"** - 减少计算
+
+---
+
+## 常见错误及解决
+
+### 错误 1: CORS 错误
+```
+Access to fetch at 'file:///...' has been blocked by CORS policy
+```
+**原因**: 直接打开 HTML 文件
+**解决**: 使用 HTTP 服务器
+
+### 错误 2: AudioContext 警告
+```
+The AudioContext was not allowed to start
+```
+**原因**: 未激活音频上下文
+**解决**: 点击页面任意位置或喇叭按钮
+
+### 错误 3: 端口被占用
+```
+PermissionError: [WinError 10013]
+```
+**原因**: 端口已被使用
+**解决**: 换个端口（如 8888 → 8000 → 3000）
+
+### 错误 4: 手机无法访问
+**原因**:
+- 防火墙阻止
+- 不在同一网络
+- IP 地址错误
+
+**解决**:
+- 检查防火墙设置
+- 确认在同一 Wi-Fi
+- 尝试不同的 IP 地址
+
+---
+
+## 项目维护建议
+
+### 日常使用
+1. **本地开发**: 双击 `启动服务器.bat`
+2. **测试**: 访问 `http://localhost:8888`
+3. **手机预览**: 使用局域网 IP
+
+### 代码更新
+1. 修改文件
+2. 浏览器刷新（Ctrl+R）查看效果
+3. 测试功能是否正常
+
+### Git 提交
+```bash
+git add .
+git commit -m "描述你的更改"
+git push
+```
+
+### 版本发布
+1. 更新 README.md 中的版本号
+2. 更新 summary.md
+3. 创建 Git tag（可选）
+4. 推送到 GitHub
+
+---
+
+## 扩展开发建议
+
+### 短期改进
+- [ ] 添加更多预设文字（"生日快乐"、"恭喜发财"等）
+- [ ] 优化移动端触摸操作
+- [ ] 添加更多烟花颜色
+- [ ] 改进音效质量
+
+### 中期计划
+- [ ] 添加烟花编辑器
+- [ ] 支持上传自定义音效
+- [ ] 添加保存/加载配置功能
+- [ ] 添加截图/录像功能
+
+### 长期规划
+- [ ] 3D 烟花效果
+- [ ] 多人对战模式
+- [ ] VR/AR 支持
+- [ ] AI 生成烟花图案
+
+---
+
+## 参考资源
+
+### 官方资源
+- **原项目**: https://github.com/NianBroken/Firework_Simulator
+- **在线 Demo**: https://nianbroken.github.io/Firework_Simulator/
+- **本仓库**: https://github.com/hcx185381/Fire-Works
+
+### 技术文档
+- [Canvas API](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API)
+- [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+- [CORS 策略](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)
+
+### 开发工具
+- [Python](https://www.python.org/) - HTTP 服务器
+- [Git](https://git-scm.com/) - 版本控制
+- [VS Code](https://code.visualstudio.com/) - 代码编辑器
+- [Claude Code](https://claude.com/claude-code) - AI 编程助手
+
+---
+
+## 致谢
+
+### 感谢名单
+- **NianBroken** - 原项目作者
+- **MillerTime** - 原始 Firework Simulator v2 作者
+- **haodong108** - fireworks-2023 项目
+- **Anthropic** - Claude Code 开发团队
+- **GitHub** - 代码托管平台
+
+### 特别感谢
+感谢用户 hcx185381 的反馈和建议，让这个项目变得更好！
+
+---
+
 **开发完成时间**: 2025年2月3日
-**文档生成时间**: 2025年2月3日
-**开发者**: Claude Code & hcx185381
+**文档初版时间**: 2025年2月3日
+**文档更新时间**: 2025年2月3日
+**开发者**: Claude Code (Claude Sonnet 4.5) & hcx185381
 
 🎆✨ 享受烟花吧！ ✨🎆
